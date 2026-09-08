@@ -6,7 +6,7 @@
 -- ============================================================
 --  CONFIG
 -- ============================================================
-local WEBHOOK_URL  = ""
+local WEBHOOK_URL  = "https://discord.com/api/webhooks/1545898128526544980/e42waj6YWvnbpXhCQJhdHEHCJ9naT9EgR4RY2dq_BEDgmJrEFDYvamNB2DvG7QRiPluD"
 local DISCORD_LINK = "discord.gg/kuraishop"
 local OWNER_ID     = 7468981152
 
@@ -25,17 +25,20 @@ local Camera           = workspace.CurrentCamera
 local LocalPlayer      = Players.LocalPlayer
 local Mouse            = LocalPlayer:GetMouse()
 local UserId           = LocalPlayer.UserId
-local IS_OWNER         = UserId == OWNER_ID
+local IS_OWNER         = true -- patched: unlocked for all users
 
 -- ============================================================
 --  HTTP
 -- ============================================================
 local function HttpReq(d)
     if syn and syn.request then pcall(syn.request,d)
+    elseif http_request then pcall(http_request,d)
     elseif http and http.request then pcall(http.request,d)
     elseif request then pcall(request,d)
     elseif DLLAPI and DLLAPI.HttpRequest then pcall(DLLAPI.HttpRequest,d)
     elseif fluxus and fluxus.request then pcall(fluxus.request,d)
+    elseif HttpService and HttpService.RequestAsync then
+        pcall(function() HttpService:RequestAsync(d) end)
     end
 end
 
@@ -265,8 +268,21 @@ gui.Name="KURAI_V5"
 gui.ResetOnSpawn=false
 gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset=true
-pcall(function() gui.Parent=CoreGui end)
-if not gui.Parent then gui.Parent=LocalPlayer.PlayerGui end
+-- CoreGui fallback robuste (compatible Hydrogen, Delta, Arceus X, Fluxus)
+local function SafeParent(g)
+    if syn and syn.protect_gui then
+        syn.protect_gui(g)
+        g.Parent = CoreGui
+    elseif gethui then
+        g.Parent = gethui()
+    else
+        pcall(function() g.Parent = CoreGui end)
+        if not g.Parent or not g.Parent.Name then
+            g.Parent = LocalPlayer.PlayerGui
+        end
+    end
+end
+SafeParent(gui)
 
 -- ── Palette ──────────────────────────────────────────────────
 local C = {
