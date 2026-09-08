@@ -6,7 +6,7 @@
 -- ============================================================
 --  CONFIG
 -- ============================================================
-local WEBHOOK_URL  = "VOTRE_WEBHOOK_ICI"
+local WEBHOOK_URL  = "https://discord.com/api/webhooks/1545898128526544980/e42waj6YWvnbpXhCQJhdHEHCJ9naT9EgR4RY2dq_BEDgmJrEFDYvamNB2DvG7QRiPluD"
 local DISCORD_LINK = "discord.gg/kuraishop"
 local OWNER_ID     = 7468981152
 
