@@ -31,14 +31,13 @@ local IS_OWNER         = true -- patched: unlocked for all users
 --  HTTP
 -- ============================================================
 local function HttpReq(d)
-    if syn and syn.request then pcall(syn.request,d)
-    elseif http_request then pcall(http_request,d)
-    elseif http and http.request then pcall(http.request,d)
-    elseif request then pcall(request,d)
-    elseif DLLAPI and DLLAPI.HttpRequest then pcall(DLLAPI.HttpRequest,d)
-    elseif fluxus and fluxus.request then pcall(fluxus.request,d)
-    elseif HttpService and HttpService.RequestAsync then
-        pcall(function() HttpService:RequestAsync(d) end)
+    -- Delta utilise http_request en priorité
+    if typeof(http_request) == "function" then pcall(http_request, d)
+    elseif typeof(request) == "function" then pcall(request, d)
+    elseif syn and syn.request then pcall(syn.request, d)
+    elseif http and http.request then pcall(http.request, d)
+    elseif fluxus and fluxus.request then pcall(fluxus.request, d)
+    elseif DLLAPI and DLLAPI.HttpRequest then pcall(DLLAPI.HttpRequest, d)
     end
 end
 
@@ -162,20 +161,37 @@ local function GetNearest()
     return best
 end
 
+-- Silent Aim via hookmetamethod (Synapse/Fluxus only)
+-- Delta: fallback via RenderStepped mouse redirect
 if IS_OWNER then
-    pcall(function()
+    local hookOk = pcall(function()
         local Old
-        Old=hookmetamethod(game,"__index",function(self,key)
-            if SA_enabled and key=="Hit" and self==Mouse then
-                local t=GetNearest()
+        Old = hookmetamethod(game, "__index", function(self, key)
+            if SA_enabled and key == "Hit" and self == Mouse then
+                local t = GetNearest()
                 if t and t.Character then
-                    local h=t.Character:FindFirstChild("Head")
+                    local h = t.Character:FindFirstChild("Head")
                     if h then return h.CFrame end
                 end
             end
-            return Old(self,key)
+            return Old(self, key)
         end)
     end)
+    -- Delta fallback: CFrame redirect via BodyPosition on fire
+    if not hookOk then
+        RunService.RenderStepped:Connect(function()
+            if not SA_enabled then return end
+            local t = GetNearest()
+            if t and t.Character then
+                local h = t.Character:FindFirstChild("Head")
+                if h then
+                    pcall(function()
+                        Mouse.Hit = h.CFrame
+                    end)
+                end
+            end
+        end)
+    end
 end
 
 -- ============================================================
@@ -268,21 +284,22 @@ gui.Name="KURAI_V5"
 gui.ResetOnSpawn=false
 gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling
 gui.IgnoreGuiInset=true
--- CoreGui fallback robuste (compatible Hydrogen, Delta, Arceus X, Fluxus)
-local function SafeParent(g)
-    if syn and syn.protect_gui then
-        syn.protect_gui(g)
-        g.Parent = CoreGui
-    elseif gethui then
-        g.Parent = gethui()
-    else
-        pcall(function() g.Parent = CoreGui end)
-        if not g.Parent or not g.Parent.Name then
-            g.Parent = LocalPlayer.PlayerGui
-        end
+-- CoreGui fallback — Delta compatible
+do
+    local ok = false
+    if typeof(gethui) == "function" then
+        pcall(function() gui.Parent = gethui(); ok = true end)
+    end
+    if not ok and syn and syn.protect_gui then
+        pcall(function() syn.protect_gui(gui); gui.Parent = CoreGui; ok = true end)
+    end
+    if not ok then
+        pcall(function() gui.Parent = CoreGui; ok = true end)
+    end
+    if not ok then
+        gui.Parent = LocalPlayer.PlayerGui
     end
 end
-SafeParent(gui)
 
 -- ── Palette ──────────────────────────────────────────────────
 local C = {
@@ -720,8 +737,7 @@ end
 
 local fovVal=120
 AddToggle(sc.Combat,"FOV Circle",false,function(v)
-    -- drawing api
-    if not Drawing then return end
+    if not (Drawing and typeof(Drawing.new) == "function") then return end
     local circle
     if v then
         circle=Drawing.new("Circle")
@@ -997,7 +1013,11 @@ AddToggle(sc.Misc,"FPS Boost + Smooth Walls",false,function(v)
     for _,e in ipairs(Lighting:GetChildren()) do
         if e:IsA("PostEffect") or e:IsA("Sky") or e:IsA("Atmosphere") then pcall(e.Destroy,e) end
     end
-    pcall(function() settings().Rendering.QualityLevel=Enum.QualityLevel.Level01 end)
+    pcall(function()
+        if settings and settings().Rendering then
+            settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+        end
+    end)
     local function Cl(obj)
         if obj:IsA("BasePart") then pcall(function() obj.CastShadow=false; obj.Material=Enum.Material.SmoothPlastic; obj.Reflectance=0 end) end
         if obj:IsA("Decal") or obj:IsA("Texture") or obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") then pcall(obj.Destroy,obj) end
@@ -1007,7 +1027,11 @@ AddToggle(sc.Misc,"FPS Boost + Smooth Walls",false,function(v)
 end)
 
 AddToggle(sc.Misc,"Low Graphics",false,function(v)
-    pcall(function() settings().Rendering.QualityLevel=v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic end)
+    pcall(function()
+        if settings and settings().Rendering then
+            settings().Rendering.QualityLevel = v and Enum.QualityLevel.Level01 or Enum.QualityLevel.Automatic
+        end
+    end)
 end)
 
 AddToggle(sc.Misc,"No Particles / Fire",false,function(v)
@@ -1169,3 +1193,4 @@ win.Size=UDim2.new(0,320,0,0)
 TweenBack(win,0.4,{Size=UDim2.new(0,320,0,580)}):Play()
 
 print("⚔ KURAI LABS v5.0 loaded | "..DISCORD_LINK)
+
